@@ -715,12 +715,14 @@
     </div>
     <button class="btn secondary" id="resetBtn" style="margin-bottom: 10px;">Clear assignments</button>
     <button class="btn" id="startRoundBtn" disabled>Randomize pairings & start round</button>
+    <button class="btn secondary" id="cancelEditBtn" style="margin-top: 10px; display:none;">Cancel, keep current round</button>
   </div>
 </div>
 
 <!-- SCREEN 2: SCORING -->
 <div class="screen" id="screen-scoring">
   <div class="round-indicator" id="roundIndicator">Round 1</div>
+  <button class="btn secondary" id="editFoursomesBtn" style="margin-bottom: 12px;">Edit foursomes</button>
 
   <div class="tab-bar">
     <button class="tab-btn active" id="tabEntryBtn">Scorecard</button>
@@ -916,6 +918,7 @@
   var roundNumber = 1;
   var activeFoursome = 'A';
   var activeHole = 1; // 1..18
+  var isEditingRound = false; // true when setup was reached via "Edit foursomes"
 
   // ---- setup screen ----
   var playerGrid = document.getElementById('playerGrid');
@@ -935,8 +938,10 @@
   function renderSetup() {
     var titleEl = document.getElementById('setupTitle');
     if (titleEl) {
-      titleEl.textContent = 'Build the foursomes \u2014 Round ' + roundNumber + (COURSE_NAMES_BY_ROUND[roundNumber] ? ' (' + COURSE_NAMES_BY_ROUND[roundNumber] + ')' : '');
+      var verb = isEditingRound ? 'Edit foursomes' : 'Build the foursomes';
+      titleEl.textContent = verb + ' \u2014 Round ' + roundNumber + (COURSE_NAMES_BY_ROUND[roundNumber] ? ' (' + COURSE_NAMES_BY_ROUND[roundNumber] + ')' : '');
     }
+    document.getElementById('cancelEditBtn').style.display = isEditingRound ? '' : 'none';
     playerGrid.innerHTML = '';
     for (var i = 0; i < ALL_PLAYERS.length; i++) {
       (function (name) {
@@ -1046,8 +1051,55 @@
     };
   }
 
+  function hasAnyScoresInRound(roundObj) {
+    if (!roundObj) return false;
+    var keys = ['A', 'B'];
+    for (var k = 0; k < keys.length; k++) {
+      var fs = roundObj[keys[k]];
+      if (!fs) continue;
+      for (var s = 0; s < fs.segments.length; s++) {
+        var seg = fs.segments[s];
+        for (var h = 0; h < seg.holes.length; h++) {
+          var hole = seg.holes[h];
+          if (hole.scoreA[0] != null || hole.scoreA[1] != null || hole.scoreB[0] != null || hole.scoreB[1] != null) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  function enterEditFoursomes() {
+    isEditingRound = true;
+    assignment = {};
+    if (round) {
+      for (var i = 0; i < round.A.players.length; i++) assignment[round.A.players[i]] = 'A';
+      for (var j = 0; j < round.B.players.length; j++) assignment[round.B.players[j]] = 'B';
+    }
+    renderSetup();
+    showScreen('setup');
+  }
+
+  document.getElementById('editFoursomesBtn').addEventListener('click', function () {
+    if (hasAnyScoresInRound(round)) {
+      showConfirmModal(
+        'Editing foursomes will clear all scores already entered for Round ' + roundNumber + '. Continue?',
+        enterEditFoursomes
+      );
+    } else {
+      enterEditFoursomes();
+    }
+  });
+
+  document.getElementById('cancelEditBtn').addEventListener('click', function () {
+    isEditingRound = false;
+    showScreen('scoring');
+  });
+
   startRoundBtn.addEventListener('click', function () {
     buildRound();
+    isEditingRound = false;
     activeFoursome = 'A';
     activeHole = 1;
     showScreen('scoring');
