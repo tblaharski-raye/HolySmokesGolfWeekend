@@ -44,6 +44,8 @@
     font-size: 11px;
     color: #6E8A6E;
     margin-top: 6px;
+    line-height: 1.4;
+    word-break: break-word;
   }
 
   .sync-status.err { color: #C97A4A; }
@@ -852,6 +854,15 @@
     syncStatusEl.className = 'sync-status' + (isErr ? ' err' : '');
   }
 
+  function describeSupabaseError(err) {
+    if (!err) return 'Unknown error';
+    var parts = [];
+    if (err.message) parts.push(err.message);
+    if (err.code) parts.push('(' + err.code + ')');
+    if (err.hint) parts.push('\u2014 ' + err.hint);
+    return parts.length ? parts.join(' ') : JSON.stringify(err);
+  }
+
   var saveTimer = null;
   var lastLocalWriteAt = 0;
 
@@ -871,7 +882,8 @@
         }, { onConflict: 'round_number' })
         .then(function (res) {
           if (res.error) {
-            setSyncStatus('Save failed \u2014 will retry on next edit', true);
+            setSyncStatus('Save failed: ' + describeSupabaseError(res.error), true);
+            console.error('hsgw save error', res.error);
           } else {
             setSyncStatus('Synced');
           }
@@ -1117,7 +1129,12 @@
           finished: false
         }, { onConflict: 'round_number' })
         .then(function (res) {
-          setSyncStatus(res.error ? 'Save failed \u2014 will retry on next edit' : 'Synced', !!res.error);
+          if (res.error) {
+            setSyncStatus('Save failed: ' + describeSupabaseError(res.error), true);
+            console.error('hsgw save error', res.error);
+          } else {
+            setSyncStatus('Synced');
+          }
         });
     }
   });
@@ -1164,7 +1181,12 @@
         setSyncStatus('Saving\u2026');
         lastLocalWriteAt = Date.now();
         markRoundFinishedInSupabase(finishedRound).then(function (res) {
-          setSyncStatus(res && res.error ? 'Save failed \u2014 will retry on next edit' : 'Synced', !!(res && res.error));
+          if (res && res.error) {
+            setSyncStatus('Save failed: ' + describeSupabaseError(res.error), true);
+            console.error('hsgw finish-round error', res.error);
+          } else {
+            setSyncStatus('Synced');
+          }
         });
 
         archivedRounds.push(finishedRound);
@@ -1790,7 +1812,8 @@
       .order('round_number', { ascending: true })
       .then(function (res) {
         if (res.error) {
-          setSyncStatus('Could not load saved rounds \u2014 starting fresh', true);
+          setSyncStatus('Load failed: ' + describeSupabaseError(res.error), true);
+          console.error('hsgw load error', res.error);
           renderSetup();
           subscribeRealtime();
           return;
