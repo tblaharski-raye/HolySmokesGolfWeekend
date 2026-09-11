@@ -863,23 +863,27 @@
     return parts.length ? parts.join(' ') : JSON.stringify(err);
   }
 
-  var saveTimer = null;
+  var saveTimerA = null;
+  var saveTimerB = null;
   var lastLocalWriteAt = 0;
 
-  function saveRoundToSupabase() {
+  // Only writes the specific foursome's column that changed ('A' or 'B') so
+  // a device editing Foursome A can never clobber concurrent edits someone
+  // else is making to Foursome B on the same round, and vice versa.
+  function saveFoursomeToSupabase(foursomeKey) {
     if (!supabaseClient || !round) return;
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () {
+
+    var runSave = function () {
       setSyncStatus('Saving\u2026');
       lastLocalWriteAt = Date.now();
+      var payload = {};
+      if (foursomeKey === 'A') payload.foursome_a = round.A;
+      else payload.foursome_b = round.B;
+
       supabaseClient
         .from(TABLE_NAME)
-        .upsert({
-          round_number: round.roundNum,
-          foursome_a: round.A,
-          foursome_b: round.B,
-          finished: false
-        }, { onConflict: 'round_number' })
+        .update(payload)
+        .eq('round_number', round.roundNum)
         .then(function (res) {
           if (res.error) {
             setSyncStatus('Save failed: ' + describeSupabaseError(res.error), true);
@@ -888,19 +892,27 @@
             setSyncStatus('Synced');
           }
         });
-    }, 500);
+    };
+
+    if (foursomeKey === 'A') {
+      if (saveTimerA) clearTimeout(saveTimerA);
+      saveTimerA = setTimeout(runSave, 500);
+    } else {
+      if (saveTimerB) clearTimeout(saveTimerB);
+      saveTimerB = setTimeout(runSave, 500);
+    }
   }
 
   function markRoundFinishedInSupabase(roundObj) {
     if (!supabaseClient) return Promise.resolve();
+    // Scores are already saved incrementally per-foursome as they're
+    // entered, so this only flips the finished flag \u2014 it never re-sends
+    // foursome data, which would risk clobbering a concurrent edit on
+    // whichever foursome this device isn't actively looking at.
     return supabaseClient
       .from(TABLE_NAME)
-      .upsert({
-        round_number: roundObj.roundNum,
-        foursome_a: roundObj.A,
-        foursome_b: roundObj.B,
-        finished: true
-      }, { onConflict: 'round_number' });
+      .update({ finished: true })
+      .eq('round_number', roundObj.roundNum);
   }
 
   function subscribeRealtime() {
@@ -1384,6 +1396,7 @@
     var table = document.getElementById('scorecardTable');
     table.innerHTML = '';
     var pars = getParForRound(round.roundNum);
+    var foursomeKey = (fs === round.A) ? 'A' : 'B';
 
     var headRow = document.createElement('tr');
     var corner = document.createElement('th');
@@ -1490,7 +1503,7 @@
             renderMatches(fs);
             renderLeaderboards();
             if (scoringView === 'liveboard') renderLiveScoreboardTable(round);
-            saveRoundToSupabase();
+            saveFoursomeToSupabase(foursomeKey);
           });
 
           td.appendChild(input);
