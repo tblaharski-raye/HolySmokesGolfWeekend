@@ -869,6 +869,23 @@
     return parts.length ? parts.join(' ') : JSON.stringify(err);
   }
 
+  // Supabase's Realtime channel can deliver jsonb columns as raw JSON
+  // strings rather than parsed objects (unlike a normal select(), which
+  // always parses them). Guard every read so a foursome's data never
+  // silently becomes a string instead of the object the rest of the app
+  // expects.
+  function parseFoursomeField(val, label) {
+    if (typeof val === 'string') {
+      try {
+        return JSON.parse(val);
+      } catch (e) {
+        console.error('hsgw: failed to parse ' + label + ' as JSON', e, val);
+        return val;
+      }
+    }
+    return val;
+  }
+
   var saveTimerA = null;
   var saveTimerB = null;
   var lastLocalWriteAt = 0;
@@ -940,10 +957,11 @@
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLE_NAME }, function (payload) {
         var row = payload.new;
         if (!row) return;
+        console.log('hsgw realtime event', payload.eventType, 'round', row.round_number, 'typeof foursome_a', typeof row.foursome_a, 'typeof foursome_b', typeof row.foursome_b);
         // Ignore echoes of our own very-recent save
         if (Date.now() - lastLocalWriteAt < 1500) return;
 
-        var incomingRound = { roundNum: row.round_number, A: row.foursome_a, B: row.foursome_b };
+        var incomingRound = { roundNum: row.round_number, A: parseFoursomeField(row.foursome_a, 'foursome_a'), B: parseFoursomeField(row.foursome_b, 'foursome_b') };
 
         if (row.finished) {
           if (round && round.roundNum === row.round_number) {
@@ -978,8 +996,8 @@
           // Sync scores/pairings live \u2014 but never stomp on a side that
           // has an edit currently mid-flight to save on this device.
           var changed = false;
-          if (!pendingA) { round.A = row.foursome_a; changed = true; }
-          if (!pendingB) { round.B = row.foursome_b; changed = true; }
+          if (!pendingA) { round.A = parseFoursomeField(row.foursome_a, 'foursome_a'); changed = true; }
+          if (!pendingB) { round.B = parseFoursomeField(row.foursome_b, 'foursome_b'); changed = true; }
           if (changed) renderScoring();
         } else if (!round && row.round_number === roundNumber) {
           // We were on setup for this exact round, but someone else already
@@ -1235,7 +1253,7 @@
           .single()
           .then(function (fetchRes) {
             if (fetchRes.data) {
-              round = { roundNum: fetchRes.data.round_number, A: fetchRes.data.foursome_a, B: fetchRes.data.foursome_b };
+              round = { roundNum: fetchRes.data.round_number, A: parseFoursomeField(fetchRes.data.foursome_a, 'foursome_a'), B: parseFoursomeField(fetchRes.data.foursome_b, 'foursome_b') };
               lastLocalWriteAt = Date.now();
               renderScoring();
             }
@@ -1939,7 +1957,7 @@
 
         for (var i = 0; i < rows.length; i++) {
           var row = rows[i];
-          var roundObj = { roundNum: row.round_number, A: row.foursome_a, B: row.foursome_b };
+          var roundObj = { roundNum: row.round_number, A: parseFoursomeField(row.foursome_a, 'foursome_a'), B: parseFoursomeField(row.foursome_b, 'foursome_b') };
           if (row.finished) {
             archivedRounds.push(roundObj);
           } else {
