@@ -844,7 +844,13 @@
 
   var supabaseClient = null;
   if (window.supabase && window.supabase.createClient) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false
+      }
+    });
   }
 
   var syncStatusEl = document.getElementById('syncStatus');
@@ -870,8 +876,19 @@
   // Only writes the specific foursome's column that changed ('A' or 'B') so
   // a device editing Foursome A can never clobber concurrent edits someone
   // else is making to Foursome B on the same round, and vice versa.
+  var pendingA = false;
+  var pendingB = false;
+
   function saveFoursomeToSupabase(foursomeKey) {
     if (!supabaseClient || !round) return;
+
+    if (foursomeKey === 'A') {
+      pendingA = true;
+      if (saveTimerA) clearTimeout(saveTimerA);
+    } else {
+      pendingB = true;
+      if (saveTimerB) clearTimeout(saveTimerB);
+    }
 
     var runSave = function () {
       setSyncStatus('Saving\u2026');
@@ -885,6 +902,9 @@
         .update(payload)
         .eq('round_number', round.roundNum)
         .then(function (res) {
+          if (foursomeKey === 'A') { pendingA = false; saveTimerA = null; }
+          else { pendingB = false; saveTimerB = null; }
+
           if (res.error) {
             setSyncStatus('Save failed: ' + describeSupabaseError(res.error), true);
             console.error('hsgw save error', res.error);
@@ -895,10 +915,8 @@
     };
 
     if (foursomeKey === 'A') {
-      if (saveTimerA) clearTimeout(saveTimerA);
       saveTimerA = setTimeout(runSave, 500);
     } else {
-      if (saveTimerB) clearTimeout(saveTimerB);
       saveTimerB = setTimeout(runSave, 500);
     }
   }
@@ -957,10 +975,12 @@
 
         // Round is actively in progress on the server (not finished).
         if (round && row.round_number === round.roundNum) {
-          // Already viewing this round \u2014 sync scores/pairings live.
-          round.A = row.foursome_a;
-          round.B = row.foursome_b;
-          renderScoring();
+          // Sync scores/pairings live \u2014 but never stomp on a side that
+          // has an edit currently mid-flight to save on this device.
+          var changed = false;
+          if (!pendingA) { round.A = row.foursome_a; changed = true; }
+          if (!pendingB) { round.B = row.foursome_b; changed = true; }
+          if (changed) renderScoring();
         } else if (!round && row.round_number === roundNumber) {
           // We were on setup for this exact round, but someone else already
           // started it first \u2014 jump straight into their pairings instead
