@@ -912,9 +912,52 @@
         if (!row) return;
         // Ignore echoes of our own very-recent save
         if (Date.now() - lastLocalWriteAt < 1500) return;
+
+        var incomingRound = { roundNum: row.round_number, A: row.foursome_a, B: row.foursome_b };
+
+        if (row.finished) {
+          if (round && round.roundNum === row.round_number) {
+            // Someone else finished the round we're actively viewing/editing.
+            var alreadyArchived = false;
+            for (var i = 0; i < archivedRounds.length; i++) {
+              if (archivedRounds[i].roundNum === row.round_number) { alreadyArchived = true; break; }
+            }
+            if (!alreadyArchived) archivedRounds.push(incomingRound);
+            round = null;
+            roundNumber = row.round_number + 1;
+            assignment = {};
+            isEditingRound = false;
+            renderSetup();
+            showScreen('setup');
+          } else if (!round && roundNumber === row.round_number) {
+            // We were setting up this same round when it got finished elsewhere (unlikely, but be safe).
+            archivedRounds.push(incomingRound);
+            roundNumber = row.round_number + 1;
+            renderSetup();
+          } else {
+            // Keep any cached copy of an already-archived round current.
+            for (var j = 0; j < archivedRounds.length; j++) {
+              if (archivedRounds[j].roundNum === row.round_number) { archivedRounds[j] = incomingRound; break; }
+            }
+          }
+          return;
+        }
+
+        // Round is actively in progress on the server (not finished).
         if (round && row.round_number === round.roundNum) {
+          // Already viewing this round \u2014 sync scores/pairings live.
           round.A = row.foursome_a;
           round.B = row.foursome_b;
+          renderScoring();
+        } else if (!round && row.round_number === roundNumber) {
+          // We were on setup for this exact round, but someone else already
+          // started it first \u2014 jump straight into their pairings instead
+          // of letting our own "start round" tap overwrite theirs.
+          round = incomingRound;
+          isEditingRound = false;
+          activeFoursome = 'A';
+          showScreen('scoring');
+          setScoringView('entry');
           renderScoring();
         }
       })
@@ -1110,6 +1153,7 @@
   });
 
   startRoundBtn.addEventListener('click', function () {
+    var wasEditing = isEditingRound;
     buildRound();
     isEditingRound = false;
     activeFoursome = 'A';
@@ -1118,25 +1162,63 @@
     setScoringView('entry');
     renderScoring();
     lastLocalWriteAt = Date.now();
-    if (supabaseClient) {
-      setSyncStatus('Saving\u2026');
-      supabaseClient
+
+    if (!supabaseClient) return;
+
+    setSyncStatus('Saving\u2026');
+
+    var savePromise;
+    if (wasEditing) {
+      // Editing an existing round is meant to overwrite it (that's the
+      // whole point), so upsert is correct here.
+      savePromise = supabaseClient
         .from(TABLE_NAME)
         .upsert({
           round_number: round.roundNum,
           foursome_a: round.A,
           foursome_b: round.B,
           finished: false
-        }, { onConflict: 'round_number' })
-        .then(function (res) {
-          if (res.error) {
-            setSyncStatus('Save failed: ' + describeSupabaseError(res.error), true);
-            console.error('hsgw save error', res.error);
-          } else {
-            setSyncStatus('Synced');
-          }
+        }, { onConflict: 'round_number' });
+    } else {
+      // Starting a brand-new round: insert-only, so if someone else
+      // started this same round a split second earlier we find out
+      // instead of silently overwriting their pairings.
+      savePromise = supabaseClient
+        .from(TABLE_NAME)
+        .insert({
+          round_number: round.roundNum,
+          foursome_a: round.A,
+          foursome_b: round.B,
+          finished: false
         });
     }
+
+    savePromise.then(function (res) {
+      if (res.error && res.error.code === '23505' && !wasEditing) {
+        // Someone beat us to starting this round \u2014 adopt their pairings.
+        supabaseClient
+          .from(TABLE_NAME)
+          .select('*')
+          .eq('round_number', round.roundNum)
+          .single()
+          .then(function (fetchRes) {
+            if (fetchRes.data) {
+              round = { roundNum: fetchRes.data.round_number, A: fetchRes.data.foursome_a, B: fetchRes.data.foursome_b };
+              lastLocalWriteAt = Date.now();
+              renderScoring();
+            }
+            setSyncStatus('Synced \u2014 joined the round someone else already started');
+          });
+        return;
+      }
+
+      if (res.error) {
+        setSyncStatus('Save failed: ' + describeSupabaseError(res.error), true);
+        console.error('hsgw save error', res.error);
+      } else {
+        setSyncStatus('Synced');
+      }
+    });
   });
 
   // ---- screens ----
