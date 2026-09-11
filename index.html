@@ -719,6 +719,8 @@
     <button class="btn" id="startRoundBtn" disabled>Randomize pairings & start round</button>
     <button class="btn secondary" id="cancelEditBtn" style="margin-top: 10px; display:none;">Cancel, keep current round</button>
   </div>
+
+  <button class="btn secondary" id="viewLiveboardFromSetupBtn">View Live Scoreboard</button>
 </div>
 
 <!-- SCREEN 2: SCORING -->
@@ -774,20 +776,25 @@
       <button class="btn secondary" id="finishRoundBtn">Finish round & start next</button>
     </div>
   </div>
+</div>
 
-  <div id="scoringLiveboardView" style="display:none;">
-    <div class="card">
-      <h2>Live Scoreboard</h2>
-      <div class="sub">All 8 players, this round</div>
-      <div class="scorecard-wrap">
-        <table class="scorecard" id="liveScoreboardTable"></table>
-      </div>
-      <div class="legend">
-        <div class="legend-item"><span class="swatch eagle"></span>Eagle or better</div>
-        <div class="legend-item"><span class="swatch birdie"></span>Birdie</div>
-        <div class="legend-item"><span class="swatch bogey"></span>Bogey</div>
-        <div class="legend-item"><span class="swatch double"></span>Double bogey+</div>
-      </div>
+<!-- SCREEN 3: LIVE SCOREBOARD (standalone, reachable from setup or scoring) -->
+<div class="screen" id="screen-liveboard">
+  <button class="btn secondary" id="liveboardBackBtn" style="margin-bottom: 12px;">&larr; Back</button>
+
+  <div class="tab-bar" id="liveboardRoundTabs"></div>
+
+  <div class="card">
+    <h2>Live Scoreboard</h2>
+    <div class="sub" id="liveboardSub">All 8 players</div>
+    <div class="scorecard-wrap">
+      <table class="scorecard" id="liveScoreboardTable"></table>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><span class="swatch eagle"></span>Eagle or better</div>
+      <div class="legend-item"><span class="swatch birdie"></span>Birdie</div>
+      <div class="legend-item"><span class="swatch bogey"></span>Bogey</div>
+      <div class="legend-item"><span class="swatch double"></span>Double bogey+</div>
     </div>
   </div>
 </div>
@@ -1007,7 +1014,6 @@
           isEditingRound = false;
           activeFoursome = 'A';
           showScreen('scoring');
-          setScoringView('entry');
           renderScoring();
         }
       })
@@ -1209,7 +1215,6 @@
     activeFoursome = 'A';
     activeHole = 1;
     showScreen('scoring');
-    setScoringView('entry');
     renderScoring();
     lastLocalWriteAt = Date.now();
 
@@ -1272,9 +1277,13 @@
   });
 
   // ---- screens ----
+  var currentScreen = 'setup';
+
   function showScreen(name) {
+    currentScreen = name;
     document.getElementById('screen-setup').className = 'screen' + (name === 'setup' ? ' active' : '');
     document.getElementById('screen-scoring').className = 'screen' + (name === 'scoring' ? ' active' : '');
+    document.getElementById('screen-liveboard').className = 'screen' + (name === 'liveboard' ? ' active' : '');
   }
 
   // ---- confirm modal ----
@@ -1343,22 +1352,81 @@
   });
 
   // ---- scoring sub-tabs ----
-  var scoringView = 'entry'; // 'entry' | 'liveboard'
+  var screenBeforeLiveboard = 'setup';
+  var selectedLiveboardRoundNum = null;
 
-  function setScoringView(view) {
-    scoringView = view;
-    document.getElementById('scoringEntryView').style.display = (view === 'entry') ? '' : 'none';
-    document.getElementById('scoringLiveboardView').style.display = (view === 'liveboard') ? '' : 'none';
-    document.getElementById('tabEntryBtn').className = 'tab-btn' + (view === 'entry' ? ' active' : '');
-    document.getElementById('tabLiveboardBtn').className = 'tab-btn' + (view === 'liveboard' ? ' active' : '');
-    if (view === 'liveboard' && round) renderLiveScoreboardTable(round);
+  function getAllKnownRounds() {
+    var all = archivedRounds.slice();
+    if (round) all.push(round);
+    all.sort(function (a, b) { return a.roundNum - b.roundNum; });
+    return all;
   }
 
-  document.getElementById('tabEntryBtn').addEventListener('click', function () {
-    setScoringView('entry');
+  function renderLiveboardRoundTabs() {
+    var all = getAllKnownRounds();
+    var tabsEl = document.getElementById('liveboardRoundTabs');
+    tabsEl.innerHTML = '';
+    for (var i = 0; i < all.length; i++) {
+      (function (r) {
+        var btn = document.createElement('button');
+        btn.className = 'tab-btn' + (r.roundNum === selectedLiveboardRoundNum ? ' active' : '');
+        btn.textContent = 'Round ' + r.roundNum;
+        btn.addEventListener('click', function () {
+          selectedLiveboardRoundNum = r.roundNum;
+          renderLiveboardScreen();
+        });
+        tabsEl.appendChild(btn);
+      })(all[i]);
+    }
+  }
+
+  function renderLiveboardScreen() {
+    renderLiveboardRoundTabs();
+    var all = getAllKnownRounds();
+    var selected = null;
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].roundNum === selectedLiveboardRoundNum) { selected = all[i]; break; }
+    }
+    if (!selected && all.length) {
+      selected = all[all.length - 1];
+      selectedLiveboardRoundNum = selected.roundNum;
+      renderLiveboardRoundTabs();
+    }
+
+    var subEl = document.getElementById('liveboardSub');
+    if (selected) {
+      var courseNote = COURSE_NAMES_BY_ROUND[selected.roundNum] ? ' \u2014 ' + COURSE_NAMES_BY_ROUND[selected.roundNum] : '';
+      subEl.textContent = 'All 8 players, Round ' + selected.roundNum + courseNote;
+      renderLiveScoreboardTable(selected);
+    } else {
+      subEl.textContent = 'No rounds started yet';
+      document.getElementById('liveScoreboardTable').innerHTML = '';
+    }
+  }
+
+  function showLiveboardScreen(fromScreen) {
+    screenBeforeLiveboard = fromScreen;
+    if (round) {
+      selectedLiveboardRoundNum = round.roundNum;
+    } else {
+      var all = getAllKnownRounds();
+      selectedLiveboardRoundNum = all.length ? all[all.length - 1].roundNum : null;
+    }
+    showScreen('liveboard');
+    renderLiveboardScreen();
+  }
+
+  document.getElementById('viewLiveboardFromSetupBtn').addEventListener('click', function () {
+    showLiveboardScreen('setup');
   });
   document.getElementById('tabLiveboardBtn').addEventListener('click', function () {
-    setScoringView('liveboard');
+    showLiveboardScreen('scoring');
+  });
+  document.getElementById('tabEntryBtn').addEventListener('click', function () {
+    // Already showing the scorecard on this screen \u2014 nothing to toggle.
+  });
+  document.getElementById('liveboardBackBtn').addEventListener('click', function () {
+    showScreen(screenBeforeLiveboard === 'scoring' ? 'scoring' : 'setup');
   });
 
   // ---- scoring helpers ----
@@ -1540,7 +1608,6 @@
             recomputeTotals();
             renderMatches(fs);
             renderLeaderboards();
-            if (scoringView === 'liveboard') renderLiveScoreboardTable(round);
             saveFoursomeToSupabase(foursomeKey);
           });
 
@@ -1765,7 +1832,9 @@
     renderScorecardTable(fs);
     renderMatches(fs);
     renderLeaderboards();
-    if (scoringView === 'liveboard') renderLiveScoreboardTable(round);
+    if (currentScreen === 'liveboard' && selectedLiveboardRoundNum === round.roundNum) {
+      renderLiveboardScreen();
+    }
   }
 
   // ---- leaderboards ----
@@ -1970,7 +2039,6 @@
           roundNumber = inProgressRow.roundNum;
           activeFoursome = 'A';
           showScreen('scoring');
-          setScoringView('entry');
           renderScoring();
         } else {
           roundNumber = archivedRounds.length ? (archivedRounds[archivedRounds.length - 1].roundNum + 1) : 1;
