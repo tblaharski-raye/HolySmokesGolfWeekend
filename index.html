@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Holy Smokes Golf Weekend</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background-color: #0F1B14;
+    color: #EDE6D6;
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    min-height: 100%;
+  }
+
+  body {
+    padding: 20px 16px 60px 16px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .masthead {
+    margin-bottom: 24px;
+  }
+
+  .masthead .kicker {
+    font-size: 13px;
+    color: #8FA88C;
+    letter-spacing: 0.02em;
+  }
+
+  .masthead h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 30px;
+    font-weight: 700;
+    color: #F5EFDD;
+    margin-top: 2px;
+    line-height: 1.15;
+  }
+
+  .sync-status {
+    font-size: 11px;
+    color: #6E8A6E;
+    margin-top: 6px;
+  }
+
+  .sync-status.err { color: #C97A4A; }
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(6, 12, 8, 0.72);
+    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-overlay.active {
+    display: flex;
+  }
+
+  .modal-box {
+    background-color: #16241C;
+    border: 1px solid #2A3B2E;
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 420px;
+    width: 100%;
+  }
+
+  .modal-title {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 19px;
+    color: #F5EFDD;
+    margin-bottom: 10px;
+  }
+
+  .modal-body {
+    font-size: 14px;
+    color: #B7C9B4;
+    line-height: 1.5;
+    margin-bottom: 18px;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .modal-actions .btn {
+    flex: 1;
+  }
+
+  .card {
+    background-color: #16241C;
+    border: 1px solid #2A3B2E;
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+
+  .card h2 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 19px;
+    color: #F5EFDD;
+    margin-bottom: 4px;
+  }
+
+  .card .sub {
+    font-size: 13px;
+    color: #8FA88C;
+    margin-bottom: 14px;
+  }
+
+  .player-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .player-btn {
+    text-align: left;
+    background-color: #1C2D22;
+    border: 1px solid #33472F;
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: #EDE6D6;
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  .player-btn .tag {
+    display: block;
+    font-size: 11px;
+    color: #6E8A6E;
+    margin-top: 2px;
+  }
+
+  .player-btn.in-a {
+    border-color: #D9A24B;
+    background-color: #2A2013;
+  }
+  .player-btn.in-a .tag { color: #D9A24B; }
+
+  .player-btn.in-b {
+    border-color: #4A7FC9;
+    background-color: #131E2A;
+  }
+  .player-btn.in-b .tag { color: #5C8FDB; }
+
+  .player-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .foursome-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .foursome-box {
+    flex: 1;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    min-height: 54px;
+  }
+
+  .foursome-box.a {
+    background-color: #2A2013;
+    border: 1px solid #6B4526;
+  }
+  .foursome-box.b {
+    background-color: #131E2A;
+    border: 1px solid #2C4A6B;
+  }
+
+  .foursome-box .label {
+    font-size: 11px;
+    color: #B5B5A8;
+    margin-bottom: 4px;
+  }
+
+  .foursome-box .name-line {
+    line-height: 1.5;
+  }
+
+  .btn {
+    display: block;
+    width: 100%;
+    text-align: center;
+    background-color: #3E5A3E;
+    border: none;
+    border-radius: 8px;
+    padding: 13px;
+    color: #F5EFDD;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .btn:disabled {
+    background-color: #26302A;
+    color: #64756A;
+    cursor: default;
+  }
+
+  .btn.secondary {
+    background-color: transparent;
+    border: 1px solid #3E5A3E;
+    color: #B7C9B4;
+    font-weight: 500;
+  }
+
+  .btn.small {
+    width: auto;
+    display: inline-block;
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .hint {
+    font-size: 13px;
+    color: #B7936A;
+    margin-top: 10px;
+  }
+
+  .segment-block {
+    margin-bottom: 18px;
+  }
+
+  .segment-title {
+    font-size: 13px;
+    color: #8FA88C;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .pair-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    padding: 8px 0;
+  }
+
+  .pair-line .side-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .side-dot.a { background-color: #D9A24B; }
+  .side-dot.b { background-color: #4A7FC9; }
+
+  .vs-divider {
+    text-align: center;
+    font-size: 11px;
+    color: #55645A;
+    padding: 4px 0;
+  }
+
+  .hole-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .hole-nav .hole-num {
+    font-family: Georgia, serif;
+    font-size: 22px;
+    color: #F5EFDD;
+  }
+
+  .hole-nav .seg-label {
+    font-size: 12px;
+    color: #8FA88C;
+  }
+
+  .nav-btn {
+    background-color: #1C2D22;
+    border: 1px solid #33472F;
+    border-radius: 6px;
+    color: #EDE6D6;
+    padding: 8px 12px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .nav-btn:disabled {
+    opacity: 0.3;
+  }
+
+  .score-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #24352A;
+  }
+  .score-row:last-child { border-bottom: none; }
+
+  .score-row .pname {
+    font-size: 15px;
+  }
+
+  .score-row .pname .side-dot {
+    display: inline-block;
+    margin-right: 8px;
+  }
+
+  .stepper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .stepper button {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid #3E5A3E;
+    background-color: #1C2D22;
+    color: #EDE6D6;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  .stepper .val {
+    width: 22px;
+    text-align: center;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hole-result {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background-color: #1C2D22;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #B7C9B4;
+    line-height: 1.5;
+  }
+
+  .hole-result strong {
+    color: #F5EFDD;
+  }
+
+  .round-indicator {
+    font-size: 12px;
+    color: #B7936A;
+    text-transform: none;
+    margin-bottom: 10px;
+  }
+
+  .tab-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .tab-btn {
+    flex: 1;
+    background-color: #16241C;
+    border: 1px solid #2A3B2E;
+    border-radius: 8px;
+    padding: 10px;
+    color: #8FA88C;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .tab-btn.active {
+    background-color: #1C2D22;
+    border-color: #6E8A5E;
+    color: #F5EFDD;
+  }
+
+  .scorecard-wrap {
+    overflow-x: auto;
+    margin-top: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table.scorecard {
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  table.scorecard th {
+    font-weight: 500;
+    color: #8FA88C;
+    padding: 4px 3px;
+    text-align: center;
+  }
+
+  table.scorecard th.player-col-head,
+  table.scorecard td.player-col {
+    text-align: left;
+    position: sticky;
+    left: 0;
+    background-color: #16241C;
+    padding-right: 10px;
+    white-space: nowrap;
+    font-size: 13px;
+    color: #EDE6D6;
+  }
+
+  table.scorecard td.player-col .side-dot {
+    margin-right: 6px;
+  }
+
+  table.scorecard td {
+    padding: 3px;
+    text-align: center;
+  }
+
+  table.scorecard th.seg-divider,
+  table.scorecard td.seg-divider {
+    border-left: 1px solid #2A3B2E;
+  }
+
+  table.scorecard input {
+    width: 30px;
+    height: 30px;
+    text-align: center;
+    background-color: #1C2D22;
+    border: 1px solid #33472F;
+    border-radius: 6px;
+    color: #EDE6D6;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+  }
+
+  table.scorecard input::-webkit-outer-spin-button,
+  table.scorecard input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  table.scorecard input:focus {
+    outline: none;
+    border-color: #6E8A5E;
+  }
+
+  table.scorecard input:disabled {
+    opacity: 1;
+    background-color: #1C2D22;
+    color: #EDE6D6;
+    -webkit-text-fill-color: #EDE6D6;
+  }
+
+  table.scorecard input.mark-birdie {
+    border-radius: 50%;
+    border-color: #D9A24B;
+  }
+
+  table.scorecard input.mark-eagle {
+    border-radius: 50%;
+    border-color: #D9A24B;
+    box-shadow: 0 0 0 2px #16241C, 0 0 0 4px #D9A24B;
+  }
+
+  table.scorecard input.mark-bogey {
+    border-radius: 0;
+    border-color: #5C8FDB;
+  }
+
+  table.scorecard input.mark-double {
+    border-radius: 0;
+    border-color: #5C8FDB;
+    box-shadow: 0 0 0 2px #16241C, 0 0 0 4px #5C8FDB;
+  }
+
+  th.total-col-head {
+    color: #B7936A;
+    font-size: 11px;
+    border-left: 1px solid #2A3B2E;
+  }
+
+  tr.par-row td {
+    color: #6E8A6E;
+    font-size: 12px;
+    padding: 4px 3px;
+    border-bottom: 1px solid #2A3B2E;
+  }
+
+  tr.par-row td.player-col.par-label {
+    font-size: 12px;
+    color: #8FA88C;
+    font-style: italic;
+  }
+
+  tr.par-row td.total-col {
+    color: #B7936A;
+    font-weight: 600;
+  }
+
+  td.total-col {
+    color: #F5EFDD;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    border-left: 1px solid #2A3B2E;
+    padding: 0 8px;
+  }
+
+  td.total-col.diff-under { color: #D9A24B; }
+  td.total-col.diff-over { color: #5C8FDB; }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: #8FA88C;
+    margin-top: 10px;
+  }
+
+  .legend .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend .swatch {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    border: 2px solid #55645A;
+  }
+
+  .legend .swatch.birdie { border-radius: 50%; border-color: #D9A24B; }
+  .legend .swatch.eagle { border-radius: 50%; border-color: #D9A24B; box-shadow: 0 0 0 2px #0F1B14, 0 0 0 4px #D9A24B; margin: 0 2px; }
+  .legend .swatch.bogey { border-color: #5C8FDB; }
+  .legend .swatch.double { border-color: #5C8FDB; box-shadow: 0 0 0 2px #0F1B14, 0 0 0 4px #5C8FDB; margin: 0 2px; }
+
+  .match-block {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #24352A;
+  }
+  .match-block:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .match-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+
+  .match-header .seg-name {
+    font-size: 13px;
+    color: #8FA88C;
+  }
+
+  .match-pairing {
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  .match-pairing .side-dot {
+    margin-right: 6px;
+  }
+
+  .match-pairing .vs {
+    color: #55645A;
+    padding: 0 6px;
+    font-size: 12px;
+  }
+
+  .hole-track {
+    display: flex;
+    gap: 4px;
+  }
+
+  .hole-chip {
+    flex: 1;
+    text-align: center;
+    padding: 5px 1px;
+    border-radius: 5px;
+    font-size: 10px;
+    background-color: #1C2D22;
+    color: #B7C9B4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .hole-chip.win-a { background-color: #3A2B14; color: #D9A24B; }
+  .hole-chip.win-b { background-color: #12233A; color: #5C8FDB; }
+  .hole-chip.halve { background-color: #22301F; color: #8FA88C; }
+
+  .match-totals {
+    display: flex;
+    justify-content: flex-end;
+    gap: 16px;
+    margin-top: 8px;
+    font-size: 13px;
+  }
+
+  .match-totals span strong {
+    color: #F5EFDD;
+  }
+
+  table.leader {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  table.leader td.rounds {
+    text-align: right;
+    font-size: 12px;
+    color: #6E8A6E;
+    padding-left: 8px;
+  }
+
+  table.leader th {
+    text-align: left;
+    font-size: 11px;
+    color: #8FA88C;
+    font-weight: 500;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #2A3B2E;
+  }
+
+  table.leader td {
+    padding: 9px 0;
+    border-bottom: 1px solid #1E2E24;
+  }
+
+  table.leader td.pts {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: #F5EFDD;
+    font-weight: 600;
+  }
+
+  table.leader tr:last-child td { border-bottom: none; }
+
+  .foursome-header {
+    font-size: 13px;
+    color: #D9A24B;
+    margin: 16px 0 6px 0;
+  }
+  .foursome-header.b { color: #5C8FDB; }
+  .foursome-header:first-child { margin-top: 0; }
+
+  .footer-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .footer-actions .btn { flex: 1; }
+
+  .progress-dots {
+    display: flex;
+    gap: 5px;
+    margin-top: 4px;
+  }
+  .progress-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #2A3B2E;
+  }
+  .progress-dot.done { background-color: #6E8A5E; }
+  .progress-dot.current { background-color: #D9A24B; }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="masthead">
+  <div class="kicker">Six Hole Best Ball</div>
+  <h1>Holy Smokes Golf Weekend</h1>
+  <div class="sync-status" id="syncStatus">Connecting\u2026</div>
+</div>
+
+<!-- SCREEN 1: SETUP -->
+<div class="screen active" id="screen-setup">
+  <div class="card">
+    <h2 id="setupTitle">Build the foursomes</h2>
+    <div class="sub">Tap a player to assign — first foursome, then second.</div>
+    <div class="player-grid" id="playerGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2>Foursomes</h2>
+    <div class="foursome-row">
+      <div class="foursome-box a">
+        <div class="label">FOURSOME A</div>
+        <div class="name-line" id="foursomeAList">&mdash;</div>
+      </div>
+      <div class="foursome-box b">
+        <div class="label">FOURSOME B</div>
+        <div class="name-line" id="foursomeBList">&mdash;</div>
+      </div>
+    </div>
+    <button class="btn secondary" id="resetBtn" style="margin-bottom: 10px;">Clear assignments</button>
+    <button class="btn" id="startRoundBtn" disabled>Randomize pairings & start round</button>
+  </div>
+</div>
+
+<!-- SCREEN 2: SCORING -->
+<div class="screen" id="screen-scoring">
+  <div class="round-indicator" id="roundIndicator">Round 1</div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tabEntryBtn">Scorecard</button>
+    <button class="tab-btn" id="tabLiveboardBtn">Live Scoreboard</button>
+  </div>
+
+  <div id="scoringEntryView">
+    <div class="card" id="scoringFoursomeCard">
+      <div class="tab-bar foursome-tab-bar">
+        <button class="tab-btn" id="tabFoursomeABtn">Foursome A</button>
+        <button class="tab-btn" id="tabFoursomeBBtn">Foursome B</button>
+      </div>
+      <div class="sub" id="scoringSub"></div>
+
+      <div class="scorecard-wrap">
+        <table class="scorecard" id="scorecardTable"></table>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><span class="swatch eagle"></span>Eagle or better</div>
+        <div class="legend-item"><span class="swatch birdie"></span>Birdie</div>
+        <div class="legend-item"><span class="swatch bogey"></span>Bogey</div>
+        <div class="legend-item"><span class="swatch double"></span>Double bogey+</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Matches</h2>
+      <div class="sub">Best ball, 1 pt per hole win, 0.5 each on a halve</div>
+      <div id="matchesArea"></div>
+    </div>
+
+    <div class="card">
+      <h2>Weekend leaderboard</h2>
+      <div class="sub" id="leaderSub">All rounds combined, includes skin bonus points</div>
+      <table class="leader" id="leaderCombined"></table>
+    </div>
+
+    <div class="card">
+      <h2>Nine-hole scores</h2>
+      <div class="sub">Front / back gross totals, each round</div>
+      <div class="scorecard-wrap">
+        <table class="leader nine-hole" id="leaderNineHole"></table>
+      </div>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn secondary" id="finishRoundBtn">Finish round & start next</button>
+    </div>
+  </div>
+
+  <div id="scoringLiveboardView" style="display:none;">
+    <div class="card">
+      <h2>Live Scoreboard</h2>
+      <div class="sub">All 8 players, this round</div>
+      <div class="scorecard-wrap">
+        <table class="scorecard" id="liveScoreboardTable"></table>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><span class="swatch eagle"></span>Eagle or better</div>
+        <div class="legend-item"><span class="swatch birdie"></span>Birdie</div>
+        <div class="legend-item"><span class="swatch bogey"></span>Bogey</div>
+        <div class="legend-item"><span class="swatch double"></span>Double bogey+</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="modal-overlay" id="confirmModalOverlay">
+  <div class="modal-box">
+    <div class="modal-title" id="confirmModalTitle">Start next round?</div>
+    <div class="modal-body" id="confirmModalBody"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" id="confirmModalCancel">Cancel</button>
+      <button class="btn" id="confirmModalConfirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+(function () {
+
+  var ALL_PLAYERS = [
+    "Tim Blaharski",
+    "Ben Pinchback",
+    "Tim Throne",
+    "Dave Rayner",
+    "Chris Rayner",
+    "Dave Riddle",
+    "Peter Burke",
+    "Adam Istvan"
+  ];
+
+  // Hole-by-hole par, keyed by round number.
+  // Round 1 = The Sawmill, Round 2 = The Alpine, Round 3 = Bay Harbor (Links/Quarry).
+  var COURSE_PARS_BY_ROUND = {
+    1: [4, 3, 4, 4, 4, 5, 4, 3, 5, 5, 3, 4, 4, 4, 3, 4, 4, 5],
+    2: [4, 4, 3, 4, 5, 4, 3, 5, 4, 4, 3, 5, 4, 4, 4, 4, 3, 5],
+    3: [4, 4, 4, 3, 4, 4, 5, 3, 5, 4, 3, 5, 4, 5, 4, 4, 3, 4]
+  };
+
+  var COURSE_NAMES_BY_ROUND = {
+    1: 'The Sawmill',
+    2: 'The Alpine',
+    3: 'Bay Harbor \u2014 Links/Quarry'
+  };
+
+  function getParForRound(roundNum) {
+    return COURSE_PARS_BY_ROUND[roundNum] || null;
+  }
+
+  // ---- Supabase ----
+  var SUPABASE_URL = 'https://vtnxjheizurqardgreeq.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0bnhqaGVpenVycWFyZGdyZWVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzA2MTIsImV4cCI6MjA5MzY0NjYxMn0.0tEGcXoVMZme75ryvYUjBg37r_9rsV0lLmULqm7c32w';
+  var TABLE_NAME = 'hsgw_rounds';
+
+  var supabaseClient = null;
+  if (window.supabase && window.supabase.createClient) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+
+  var syncStatusEl = document.getElementById('syncStatus');
+  function setSyncStatus(text, isErr) {
+    if (!syncStatusEl) return;
+    syncStatusEl.textContent = text;
+    syncStatusEl.className = 'sync-status' + (isErr ? ' err' : '');
+  }
+
+  var saveTimer = null;
+  var lastLocalWriteAt = 0;
+
+  function saveRoundToSupabase() {
+    if (!supabaseClient || !round) return;
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      setSyncStatus('Saving\u2026');
+      lastLocalWriteAt = Date.now();
+      supabaseClient
+        .from(TABLE_NAME)
+        .upsert({
+          round_number: round.roundNum,
+          foursome_a: round.A,
+          foursome_b: round.B,
+          finished: false
+        }, { onConflict: 'round_number' })
+        .then(function (res) {
+          if (res.error) {
+            setSyncStatus('Save failed \u2014 will retry on next edit', true);
+          } else {
+            setSyncStatus('Synced');
+          }
+        });
+    }, 500);
+  }
+
+  function markRoundFinishedInSupabase(roundObj) {
+    if (!supabaseClient) return Promise.resolve();
+    return supabaseClient
+      .from(TABLE_NAME)
+      .upsert({
+        round_number: roundObj.roundNum,
+        foursome_a: roundObj.A,
+        foursome_b: roundObj.B,
+        finished: true
+      }, { onConflict: 'round_number' });
+  }
+
+  function subscribeRealtime() {
+    if (!supabaseClient) return;
+    supabaseClient
+      .channel('hsgw_rounds_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLE_NAME }, function (payload) {
+        var row = payload.new;
+        if (!row) return;
+        // Ignore echoes of our own very-recent save
+        if (Date.now() - lastLocalWriteAt < 1500) return;
+        if (round && row.round_number === round.roundNum) {
+          round.A = row.foursome_a;
+          round.B = row.foursome_b;
+          renderScoring();
+        }
+      })
+      .subscribe(function (status) {
+        if (status === 'SUBSCRIBED') setSyncStatus('Live');
+      });
+  }
+
+  // ---- state ----
+  var assignment = {}; // name -> 'A' | 'B'
+  var round = null; // the in-progress round
+  var archivedRounds = []; // finished rounds, same shape as `round`
+  var roundNumber = 1;
+  var activeFoursome = 'A';
+  var activeHole = 1; // 1..18
+
+  // ---- setup screen ----
+  var playerGrid = document.getElementById('playerGrid');
+  var foursomeAList = document.getElementById('foursomeAList');
+  var foursomeBList = document.getElementById('foursomeBList');
+  var startRoundBtn = document.getElementById('startRoundBtn');
+  var resetBtn = document.getElementById('resetBtn');
+
+  function countIn(team) {
+    var c = 0;
+    for (var i = 0; i < ALL_PLAYERS.length; i++) {
+      if (assignment[ALL_PLAYERS[i]] === team) c++;
+    }
+    return c;
+  }
+
+  function renderSetup() {
+    var titleEl = document.getElementById('setupTitle');
+    if (titleEl) {
+      titleEl.textContent = 'Build the foursomes \u2014 Round ' + roundNumber + (COURSE_NAMES_BY_ROUND[roundNumber] ? ' (' + COURSE_NAMES_BY_ROUND[roundNumber] + ')' : '');
+    }
+    playerGrid.innerHTML = '';
+    for (var i = 0; i < ALL_PLAYERS.length; i++) {
+      (function (name) {
+        var btn = document.createElement('button');
+        btn.className = 'player-btn';
+        var team = assignment[name];
+        if (team === 'A') btn.className += ' in-a';
+        if (team === 'B') btn.className += ' in-b';
+
+        var tagText = 'Tap to assign';
+        if (team === 'A') tagText = 'Foursome A';
+        if (team === 'B') tagText = 'Foursome B';
+
+        btn.innerHTML = name + '<span class="tag">' + tagText + '</span>';
+
+        var aFull = countIn('A') >= 4;
+        var bFull = countIn('B') >= 4;
+        if (!team && aFull && bFull) btn.disabled = true;
+
+        btn.addEventListener('click', function () {
+          cyclePlayer(name);
+        });
+        playerGrid.appendChild(btn);
+      })(ALL_PLAYERS[i]);
+    }
+
+    var aNames = ALL_PLAYERS.filter(function (n) { return assignment[n] === 'A'; });
+    var bNames = ALL_PLAYERS.filter(function (n) { return assignment[n] === 'B'; });
+    foursomeAList.textContent = aNames.length ? aNames.join(', ') : '\u2014';
+    foursomeBList.textContent = bNames.length ? bNames.join(', ') : '\u2014';
+
+    startRoundBtn.disabled = !(aNames.length === 4 && bNames.length === 4);
+  }
+
+  function cyclePlayer(name) {
+    var current = assignment[name];
+    if (!current) {
+      if (countIn('A') < 4) {
+        assignment[name] = 'A';
+      } else if (countIn('B') < 4) {
+        assignment[name] = 'B';
+      }
+    } else if (current === 'A') {
+      if (countIn('B') < 4) {
+        assignment[name] = 'B';
+      } else {
+        delete assignment[name];
+      }
+    } else if (current === 'B') {
+      delete assignment[name];
+    }
+    renderSetup();
+  }
+
+  resetBtn.addEventListener('click', function () {
+    assignment = {};
+    renderSetup();
+  });
+
+  // ---- randomization ----
+  function shuffle(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  // Build 3 segments of pairings for a 4-player foursome such that
+  // no two players share a partner twice. With 4 players there are
+  // exactly 3 distinct ways to split into two pairs; use all three,
+  // in random order, and randomize which pair is "side 1" vs "side 2".
+  function buildSegmentsForFoursome(players) {
+    var p = shuffle(players); // p0, p1, p2, p3
+    var splits = [
+      [[p[0], p[1]], [p[2], p[3]]],
+      [[p[0], p[2]], [p[1], p[3]]],
+      [[p[0], p[3]], [p[1], p[2]]]
+    ];
+    splits = shuffle(splits);
+    var segments = [];
+    for (var i = 0; i < 3; i++) {
+      var pair1 = splits[i][0];
+      var pair2 = splits[i][1];
+      if (Math.random() < 0.5) {
+        var t = pair1; pair1 = pair2; pair2 = t;
+      }
+      segments.push({
+        sideA: pair1,
+        sideB: pair2,
+        holes: [1, 2, 3, 4, 5, 6].map(function () {
+          return { scoreA: [null, null], scoreB: [null, null] };
+        })
+      });
+    }
+    return segments;
+  }
+
+  function buildRound() {
+    var aNames = ALL_PLAYERS.filter(function (n) { return assignment[n] === 'A'; });
+    var bNames = ALL_PLAYERS.filter(function (n) { return assignment[n] === 'B'; });
+    round = {
+      roundNum: roundNumber,
+      A: { players: aNames, segments: buildSegmentsForFoursome(aNames) },
+      B: { players: bNames, segments: buildSegmentsForFoursome(bNames) }
+    };
+  }
+
+  startRoundBtn.addEventListener('click', function () {
+    buildRound();
+    activeFoursome = 'A';
+    activeHole = 1;
+    showScreen('scoring');
+    setScoringView('entry');
+    renderScoring();
+    lastLocalWriteAt = Date.now();
+    if (supabaseClient) {
+      setSyncStatus('Saving\u2026');
+      supabaseClient
+        .from(TABLE_NAME)
+        .upsert({
+          round_number: round.roundNum,
+          foursome_a: round.A,
+          foursome_b: round.B,
+          finished: false
+        }, { onConflict: 'round_number' })
+        .then(function (res) {
+          setSyncStatus(res.error ? 'Save failed \u2014 will retry on next edit' : 'Synced', !!res.error);
+        });
+    }
+  });
+
+  // ---- screens ----
+  function showScreen(name) {
+    document.getElementById('screen-setup').className = 'screen' + (name === 'setup' ? ' active' : '');
+    document.getElementById('screen-scoring').className = 'screen' + (name === 'scoring' ? ' active' : '');
+  }
+
+  // ---- confirm modal ----
+  var confirmModalOverlay = document.getElementById('confirmModalOverlay');
+  var confirmModalBody = document.getElementById('confirmModalBody');
+  var confirmModalConfirmBtn = document.getElementById('confirmModalConfirm');
+  var confirmModalCancelBtn = document.getElementById('confirmModalCancel');
+  var pendingConfirmAction = null;
+
+  function showConfirmModal(bodyText, onConfirm) {
+    confirmModalBody.textContent = bodyText;
+    pendingConfirmAction = onConfirm;
+    confirmModalOverlay.className = 'modal-overlay active';
+  }
+
+  function hideConfirmModal() {
+    confirmModalOverlay.className = 'modal-overlay';
+    pendingConfirmAction = null;
+  }
+
+  confirmModalCancelBtn.addEventListener('click', hideConfirmModal);
+  confirmModalConfirmBtn.addEventListener('click', function () {
+    var action = pendingConfirmAction;
+    hideConfirmModal();
+    if (action) action();
+  });
+
+  document.getElementById('finishRoundBtn').addEventListener('click', function () {
+    if (!round) return;
+    var nextNum = roundNumber + 1;
+    var courseNote = COURSE_NAMES_BY_ROUND[nextNum] ? ' (' + COURSE_NAMES_BY_ROUND[nextNum] + ')' : '';
+    showConfirmModal(
+      'This locks in Round ' + roundNumber + ' and moves everyone to setting up Round ' + nextNum + courseNote + '. Scores already entered stay saved.',
+      function () {
+        var finishedRound = round;
+        setSyncStatus('Saving\u2026');
+        lastLocalWriteAt = Date.now();
+        markRoundFinishedInSupabase(finishedRound).then(function (res) {
+          setSyncStatus(res && res.error ? 'Save failed \u2014 will retry on next edit' : 'Synced', !!(res && res.error));
+        });
+
+        archivedRounds.push(finishedRound);
+        roundNumber++;
+        round = null;
+        assignment = {};
+        activeFoursome = 'A';
+        activeHole = 1;
+        renderSetup();
+        showScreen('setup');
+      }
+    );
+  });
+
+  document.getElementById('tabFoursomeABtn').addEventListener('click', function () {
+    activeFoursome = 'A';
+    renderScoring();
+  });
+  document.getElementById('tabFoursomeBBtn').addEventListener('click', function () {
+    activeFoursome = 'B';
+    renderScoring();
+  });
+
+  // ---- scoring sub-tabs ----
+  var scoringView = 'entry'; // 'entry' | 'liveboard'
+
+  function setScoringView(view) {
+    scoringView = view;
+    document.getElementById('scoringEntryView').style.display = (view === 'entry') ? '' : 'none';
+    document.getElementById('scoringLiveboardView').style.display = (view === 'liveboard') ? '' : 'none';
+    document.getElementById('tabEntryBtn').className = 'tab-btn' + (view === 'entry' ? ' active' : '');
+    document.getElementById('tabLiveboardBtn').className = 'tab-btn' + (view === 'liveboard' ? ' active' : '');
+    if (view === 'liveboard' && round) renderLiveScoreboardTable(round);
+  }
+
+  document.getElementById('tabEntryBtn').addEventListener('click', function () {
+    setScoringView('entry');
+  });
+  document.getElementById('tabLiveboardBtn').addEventListener('click', function () {
+    setScoringView('liveboard');
+  });
+
+  // ---- scoring helpers ----
+  function segIndexForHole(holeNum) {
+    return Math.floor((holeNum - 1) / 6); // 0,1,2
+  }
+  function holeIndexWithinSegment(holeNum) {
+    return (holeNum - 1) % 6; // 0..5
+  }
+
+  function locatePlayerInSegment(seg, name) {
+    if (seg.sideA[0] === name) return { side: 'A', idx: 0 };
+    if (seg.sideA[1] === name) return { side: 'A', idx: 1 };
+    if (seg.sideB[0] === name) return { side: 'B', idx: 0 };
+    return { side: 'B', idx: 1 };
+  }
+
+  function getScoreCell(fs, holeNum, name) {
+    var segIdx = segIndexForHole(holeNum);
+    var hIdx = holeIndexWithinSegment(holeNum);
+    var seg = fs.segments[segIdx];
+    var hole = seg.holes[hIdx];
+    var loc = locatePlayerInSegment(seg, name);
+    var arr = (loc.side === 'A') ? hole.scoreA : hole.scoreB;
+    return { arr: arr, idx: loc.idx };
+  }
+
+  function initials(name) {
+    var parts = name.split(' ');
+    var out = '';
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].length) out += parts[i].charAt(0).toUpperCase();
+    }
+    return out;
+  }
+
+  function pairInitials(pair) {
+    return initials(pair[0]) + '/' + initials(pair[1]);
+  }
+
+  function bestOf(pair, scores) {
+    // scores: [scoreForPlayer0, scoreForPlayer1], lower gross wins; null = not entered
+    var s0 = scores[0], s1 = scores[1];
+    if (s0 == null && s1 == null) return null;
+    if (s0 == null) return s1;
+    if (s1 == null) return s0;
+    return Math.min(s0, s1);
+  }
+
+  function computeHolePoints(hole) {
+    var bestA = bestOf(null, hole.scoreA);
+    var bestB = bestOf(null, hole.scoreB);
+    if (bestA == null || bestB == null) return null; // incomplete
+    if (bestA < bestB) return { A: 1, B: 0 };
+    if (bestB < bestA) return { A: 0, B: 1 };
+    return { A: 0.5, B: 0.5 };
+  }
+
+  // ---- scorecard table ----
+  function applyMarker(input, value, holeNum, pars) {
+    input.className = '';
+    if (value == null || !pars) return;
+    var par = pars[holeNum - 1];
+    if (par == null) return;
+    var diff = value - par;
+    if (diff <= -2) input.className = 'mark-eagle';
+    else if (diff === -1) input.className = 'mark-birdie';
+    else if (diff === 1) input.className = 'mark-bogey';
+    else if (diff >= 2) input.className = 'mark-double';
+  }
+
+  function renderScorecardTable(fs) {
+    var table = document.getElementById('scorecardTable');
+    table.innerHTML = '';
+    var pars = getParForRound(round.roundNum);
+
+    var headRow = document.createElement('tr');
+    var corner = document.createElement('th');
+    corner.className = 'player-col-head';
+    headRow.appendChild(corner);
+
+    function addHeaderCell(text, extraClass) {
+      var th = document.createElement('th');
+      th.textContent = text;
+      if (extraClass) th.className = extraClass;
+      headRow.appendChild(th);
+    }
+
+    for (var h = 1; h <= 9; h++) {
+      addHeaderCell(String(h), h === 7 ? 'seg-divider' : null);
+    }
+    addHeaderCell('OUT', 'total-col-head');
+    for (var h2 = 10; h2 <= 18; h2++) {
+      addHeaderCell(String(h2), h2 === 13 ? 'seg-divider' : null);
+    }
+    addHeaderCell('IN', 'total-col-head');
+    addHeaderCell('TOT', 'total-col-head');
+
+    table.appendChild(headRow);
+
+    // par row
+    var parRow = document.createElement('tr');
+    parRow.className = 'par-row';
+    var parLabelTd = document.createElement('td');
+    parLabelTd.className = 'player-col par-label';
+    parLabelTd.textContent = 'Par';
+    parRow.appendChild(parLabelTd);
+
+    function addParCell(value, extraClass) {
+      var td = document.createElement('td');
+      if (extraClass) td.className = extraClass;
+      td.textContent = (value == null) ? '\u2013' : value;
+      parRow.appendChild(td);
+    }
+
+    var parOut = 0, parIn = 0, haveOut = false, haveIn = false;
+    for (var pf = 1; pf <= 9; pf++) {
+      var pv = pars ? pars[pf - 1] : null;
+      if (pv != null) { parOut += pv; haveOut = true; }
+      addParCell(pv, pf === 7 ? 'seg-divider' : null);
+    }
+    addParCell(haveOut ? parOut : null, 'total-col');
+    for (var pb = 10; pb <= 18; pb++) {
+      var pv2 = pars ? pars[pb - 1] : null;
+      if (pv2 != null) { parIn += pv2; haveIn = true; }
+      addParCell(pv2, pb === 13 ? 'seg-divider' : null);
+    }
+    addParCell(haveIn ? parIn : null, 'total-col');
+    addParCell((haveOut || haveIn) ? (parOut + parIn) : null, 'total-col');
+
+    table.appendChild(parRow);
+
+    for (var p = 0; p < fs.players.length; p++) {
+      (function (name) {
+        var row = document.createElement('tr');
+        var nameTd = document.createElement('td');
+        nameTd.className = 'player-col';
+        nameTd.textContent = name;
+        row.appendChild(nameTd);
+
+        var outTd = document.createElement('td');
+        outTd.className = 'total-col';
+        var inTd = document.createElement('td');
+        inTd.className = 'total-col';
+        var totTd = document.createElement('td');
+        totTd.className = 'total-col';
+
+        function recomputeTotals() {
+          var out = 0, inn = 0, anyOut = false, anyIn = false;
+          for (var hh = 1; hh <= 18; hh++) {
+            var c = getScoreCell(fs, hh, name);
+            var v = c.arr[c.idx];
+            if (v == null) continue;
+            if (hh <= 9) { out += v; anyOut = true; }
+            else { inn += v; anyIn = true; }
+          }
+          outTd.textContent = anyOut ? out : '\u2013';
+          inTd.textContent = anyIn ? inn : '\u2013';
+          totTd.textContent = (anyOut || anyIn) ? (out + inn) : '\u2013';
+        }
+
+        function buildScoreCell(holeNum) {
+          var td = document.createElement('td');
+          if (holeNum === 7 || holeNum === 13) td.className = 'seg-divider';
+
+          var cell = getScoreCell(fs, holeNum, name);
+          var input = document.createElement('input');
+          input.type = 'number';
+          input.min = '1';
+          input.max = '15';
+          input.value = (cell.arr[cell.idx] == null) ? '' : cell.arr[cell.idx];
+          applyMarker(input, cell.arr[cell.idx], holeNum, pars);
+
+          input.addEventListener('input', function () {
+            var v = parseInt(input.value, 10);
+            cell.arr[cell.idx] = isNaN(v) ? null : v;
+            applyMarker(input, cell.arr[cell.idx], holeNum, pars);
+            recomputeTotals();
+            renderMatches(fs);
+            renderLeaderboards();
+            if (scoringView === 'liveboard') renderLiveScoreboardTable(round);
+            saveRoundToSupabase();
+          });
+
+          td.appendChild(input);
+          return td;
+        }
+
+        for (var hh1 = 1; hh1 <= 9; hh1++) row.appendChild(buildScoreCell(hh1));
+        row.appendChild(outTd);
+        for (var hh2 = 10; hh2 <= 18; hh2++) row.appendChild(buildScoreCell(hh2));
+        row.appendChild(inTd);
+        row.appendChild(totTd);
+
+        recomputeTotals();
+        table.appendChild(row);
+      })(fs.players[p]);
+    }
+  }
+
+  // ---- live scoreboard (read-only, both foursomes combined) ----
+  function renderLiveScoreboardTable(roundObj) {
+    var table = document.getElementById('liveScoreboardTable');
+    table.innerHTML = '';
+    var pars = getParForRound(roundObj.roundNum);
+    var players = roundObj.A.players.concat(roundObj.B.players);
+
+    var headRow = document.createElement('tr');
+    var corner = document.createElement('th');
+    corner.className = 'player-col-head';
+    headRow.appendChild(corner);
+
+    function addHeaderCell(text, extraClass) {
+      var th = document.createElement('th');
+      th.textContent = text;
+      if (extraClass) th.className = extraClass;
+      headRow.appendChild(th);
+    }
+
+    for (var h = 1; h <= 9; h++) addHeaderCell(String(h), h === 7 ? 'seg-divider' : null);
+    addHeaderCell('OUT', 'total-col-head');
+    for (var h2 = 10; h2 <= 18; h2++) addHeaderCell(String(h2), h2 === 13 ? 'seg-divider' : null);
+    addHeaderCell('IN', 'total-col-head');
+    addHeaderCell('TOT', 'total-col-head');
+    addHeaderCell('+/-', 'total-col-head');
+    table.appendChild(headRow);
+
+    // par row
+    var parRow = document.createElement('tr');
+    parRow.className = 'par-row';
+    var parLabelTd = document.createElement('td');
+    parLabelTd.className = 'player-col par-label';
+    parLabelTd.textContent = 'Par';
+    parRow.appendChild(parLabelTd);
+
+    function addParCell(value, extraClass) {
+      var td = document.createElement('td');
+      if (extraClass) td.className = extraClass;
+      td.textContent = (value == null) ? '\u2013' : value;
+      parRow.appendChild(td);
+    }
+
+    var parOut = 0, parIn = 0, haveOut = false, haveIn = false;
+    for (var pf = 1; pf <= 9; pf++) {
+      var pv = pars ? pars[pf - 1] : null;
+      if (pv != null) { parOut += pv; haveOut = true; }
+      addParCell(pv, pf === 7 ? 'seg-divider' : null);
+    }
+    addParCell(haveOut ? parOut : null, 'total-col');
+    for (var pb = 10; pb <= 18; pb++) {
+      var pv2 = pars ? pars[pb - 1] : null;
+      if (pv2 != null) { parIn += pv2; haveIn = true; }
+      addParCell(pv2, pb === 13 ? 'seg-divider' : null);
+    }
+    addParCell(haveIn ? parIn : null, 'total-col');
+    addParCell((haveOut || haveIn) ? (parOut + parIn) : null, 'total-col');
+    addParCell(pars ? 'E' : null, 'total-col');
+    table.appendChild(parRow);
+
+    for (var p = 0; p < players.length; p++) {
+      var name = players[p];
+      var row = document.createElement('tr');
+      var nameTd = document.createElement('td');
+      nameTd.className = 'player-col';
+      nameTd.textContent = name;
+      row.appendChild(nameTd);
+
+      var out = 0, inn = 0, anyOut = false, anyIn = false;
+      var diffSum = 0, anyDiff = false;
+
+      for (var hh = 1; hh <= 18; hh++) {
+        var td = document.createElement('td');
+        if (hh === 7 || hh === 13) td.className = 'seg-divider';
+
+        var v = getPlayerHoleScore(roundObj, name, hh);
+        var input = document.createElement('input');
+        input.type = 'number';
+        input.disabled = true;
+        input.value = (v == null) ? '' : v;
+        applyMarker(input, v, hh, pars);
+
+        if (v != null) {
+          if (hh <= 9) { out += v; anyOut = true; }
+          else { inn += v; anyIn = true; }
+
+          var parForHole = pars ? pars[hh - 1] : null;
+          if (parForHole != null) {
+            diffSum += (v - parForHole);
+            anyDiff = true;
+          }
+        }
+
+        td.appendChild(input);
+        row.appendChild(td);
+
+        if (hh === 9) {
+          var outTd = document.createElement('td');
+          outTd.className = 'total-col';
+          outTd.textContent = anyOut ? out : '\u2013';
+          row.appendChild(outTd);
+        }
+      }
+
+      var inTd = document.createElement('td');
+      inTd.className = 'total-col';
+      inTd.textContent = anyIn ? inn : '\u2013';
+      row.appendChild(inTd);
+
+      var totTd = document.createElement('td');
+      totTd.className = 'total-col';
+      totTd.textContent = (anyOut || anyIn) ? (out + inn) : '\u2013';
+      row.appendChild(totTd);
+
+      var diffTd = document.createElement('td');
+      diffTd.className = 'total-col';
+      if (!anyDiff) {
+        diffTd.textContent = '\u2013';
+      } else if (diffSum === 0) {
+        diffTd.textContent = 'E';
+      } else if (diffSum > 0) {
+        diffTd.textContent = '+' + diffSum;
+        diffTd.className += ' diff-over';
+      } else {
+        diffTd.textContent = String(diffSum);
+        diffTd.className += ' diff-under';
+      }
+      row.appendChild(diffTd);
+
+      table.appendChild(row);
+    }
+  }
+
+  // ---- matches section ----
+  function renderMatches(fs) {
+    var area = document.getElementById('matchesArea');
+    area.innerHTML = '';
+
+    for (var s = 0; s < fs.segments.length; s++) {
+      var seg = fs.segments[s];
+      var segStart = s * 6 + 1;
+      var segEnd = segStart + 5;
+
+      var block = document.createElement('div');
+      block.className = 'match-block';
+
+      var header = document.createElement('div');
+      header.className = 'match-header';
+      header.innerHTML = '<div class="seg-name">Segment ' + (s + 1) + ' \u00b7 holes ' + segStart + '\u2013' + segEnd + '</div>';
+      block.appendChild(header);
+
+      var pairing = document.createElement('div');
+      pairing.className = 'match-pairing';
+      pairing.innerHTML =
+        '<span class="side-dot a"></span>' + seg.sideA[0] + ' & ' + seg.sideA[1] +
+        '<span class="vs">vs</span>' +
+        '<span class="side-dot b"></span>' + seg.sideB[0] + ' & ' + seg.sideB[1];
+      block.appendChild(pairing);
+
+      var track = document.createElement('div');
+      track.className = 'hole-track';
+      var totalA = 0, totalB = 0;
+      for (var hI = 0; hI < seg.holes.length; hI++) {
+        var pts = computeHolePoints(seg.holes[hI]);
+        var chip = document.createElement('div');
+        chip.className = 'hole-chip';
+        var label = String(segStart + hI);
+        if (pts == null) {
+          chip.textContent = label;
+        } else if (pts.A === pts.B) {
+          chip.textContent = 'Split';
+          totalA += 0.5; totalB += 0.5;
+        } else if (pts.A === 1) {
+          chip.textContent = pairInitials(seg.sideA);
+          totalA += 1;
+        } else {
+          chip.textContent = pairInitials(seg.sideB);
+          totalB += 1;
+        }
+        track.appendChild(chip);
+      }
+      block.appendChild(track);
+
+      var totals = document.createElement('div');
+      totals.className = 'match-totals';
+      var totalADisplay = (totalA % 1 === 0) ? totalA : totalA.toFixed(1);
+      var totalBDisplay = (totalB % 1 === 0) ? totalB : totalB.toFixed(1);
+      totals.innerHTML = '<span>' + seg.sideA[0].split(' ')[0] + ' & ' + seg.sideA[1].split(' ')[0] + ': <strong>' + totalADisplay + '</strong></span><span>' + seg.sideB[0].split(' ')[0] + ' & ' + seg.sideB[1].split(' ')[0] + ': <strong>' + totalBDisplay + '</strong></span>';
+      block.appendChild(totals);
+
+      area.appendChild(block);
+    }
+  }
+
+  // ---- render scoring screen ----
+  function renderScoring() {
+    var fs = round[activeFoursome];
+
+    document.getElementById('roundIndicator').textContent = 'Round ' + roundNumber + (COURSE_NAMES_BY_ROUND[roundNumber] ? ' \u00b7 ' + COURSE_NAMES_BY_ROUND[roundNumber] : '');
+    document.getElementById('tabFoursomeABtn').className = 'tab-btn' + (activeFoursome === 'A' ? ' active' : '');
+    document.getElementById('tabFoursomeBBtn').className = 'tab-btn' + (activeFoursome === 'B' ? ' active' : '');
+    document.getElementById('scoringSub').textContent = fs.players.join(', ');
+
+    renderScorecardTable(fs);
+    renderMatches(fs);
+    renderLeaderboards();
+    if (scoringView === 'liveboard') renderLiveScoreboardTable(round);
+  }
+
+  // ---- leaderboards ----
+  // Accumulates points + rounds-played for every player across a single
+  // round object (both foursomes) into the passed totals/roundsPlayed maps.
+  function computeSkinsForRound(roundObj) {
+    var skins = {};
+    var allPlayers = roundObj.A.players.concat(roundObj.B.players);
+    for (var i = 0; i < allPlayers.length; i++) skins[allPlayers[i]] = 0;
+
+    for (var h = 1; h <= 18; h++) {
+      var scores = [];
+      var complete = true;
+      for (var p = 0; p < allPlayers.length; p++) {
+        var v = getPlayerHoleScore(roundObj, allPlayers[p], h);
+        if (v == null) { complete = false; break; }
+        scores.push({ name: allPlayers[p], score: v });
+      }
+      if (!complete) continue;
+
+      var min = scores[0].score;
+      for (var m = 1; m < scores.length; m++) {
+        if (scores[m].score < min) min = scores[m].score;
+      }
+      var winners = [];
+      for (var w = 0; w < scores.length; w++) {
+        if (scores[w].score === min) winners.push(scores[w].name);
+      }
+      if (winners.length === 1) {
+        skins[winners[0]] += 1;
+      }
+    }
+    return skins;
+  }
+
+  function accumulateRound(roundObj, totals, roundsPlayed) {
+    var keys = ['A', 'B'];
+    for (var k = 0; k < keys.length; k++) {
+      var fs = roundObj[keys[k]];
+      if (!fs) continue;
+      for (var i = 0; i < fs.players.length; i++) {
+        var n = fs.players[i];
+        if (!(n in totals)) totals[n] = 0;
+        if (!(n in roundsPlayed)) roundsPlayed[n] = 0;
+        roundsPlayed[n] += 1;
+      }
+      for (var s = 0; s < fs.segments.length; s++) {
+        var seg = fs.segments[s];
+        for (var h = 0; h < seg.holes.length; h++) {
+          var pts = computeHolePoints(seg.holes[h]);
+          if (pts == null) continue;
+          totals[seg.sideA[0]] += pts.A;
+          totals[seg.sideA[1]] += pts.A;
+          totals[seg.sideB[0]] += pts.B;
+          totals[seg.sideB[1]] += pts.B;
+        }
+      }
+    }
+
+    var skins = computeSkinsForRound(roundObj);
+    for (var name in skins) {
+      if (skins.hasOwnProperty(name)) {
+        if (!(name in totals)) totals[name] = 0;
+        totals[name] += skins[name];
+      }
+    }
+  }
+
+  function computeCombinedTotals() {
+    var totals = {};
+    var roundsPlayed = {};
+    // start every known player at zero so they show up even before playing
+    for (var i = 0; i < ALL_PLAYERS.length; i++) {
+      totals[ALL_PLAYERS[i]] = 0;
+      roundsPlayed[ALL_PLAYERS[i]] = 0;
+    }
+    for (var r = 0; r < archivedRounds.length; r++) {
+      accumulateRound(archivedRounds[r], totals, roundsPlayed);
+    }
+    if (round) accumulateRound(round, totals, roundsPlayed);
+    return { totals: totals, roundsPlayed: roundsPlayed };
+  }
+
+  // ---- nine-hole scores table ----
+  function findFoursomeKeyForPlayer(roundObj, name) {
+    if (roundObj.A && roundObj.A.players.indexOf(name) !== -1) return 'A';
+    if (roundObj.B && roundObj.B.players.indexOf(name) !== -1) return 'B';
+    return null;
+  }
+
+  function getPlayerHoleScore(roundObj, name, holeNum) {
+    var fsKey = findFoursomeKeyForPlayer(roundObj, name);
+    if (!fsKey) return null;
+    var fs = roundObj[fsKey];
+    var segIdx = segIndexForHole(holeNum);
+    var hIdx = holeIndexWithinSegment(holeNum);
+    var seg = fs.segments[segIdx];
+    var loc = locatePlayerInSegment(seg, name);
+    var hole = seg.holes[hIdx];
+    var arr = (loc.side === 'A') ? hole.scoreA : hole.scoreB;
+    return arr[loc.idx];
+  }
+
+  function getPlayerRoundOutIn(roundObj, name) {
+    var out = 0, inn = 0, anyOut = false, anyIn = false;
+    for (var h = 1; h <= 18; h++) {
+      var v = getPlayerHoleScore(roundObj, name, h);
+      if (v == null) continue;
+      if (h <= 9) { out += v; anyOut = true; }
+      else { inn += v; anyIn = true; }
+    }
+    return { out: anyOut ? out : null, inn: anyIn ? inn : null };
+  }
+
+  function renderNineHoleLeaderboard() {
+    var allRounds = archivedRounds.concat(round ? [round] : []);
+    var el = document.getElementById('leaderNineHole');
+
+    if (allRounds.length === 0) {
+      el.innerHTML = '';
+      return;
+    }
+
+    var html = '<tr><th>Player</th>';
+    for (var r = 0; r < allRounds.length; r++) {
+      html += '<th style="text-align:right;">R' + (r + 1) + ' Out</th><th style="text-align:right;">R' + (r + 1) + ' In</th>';
+    }
+    html += '</tr>';
+
+    for (var i = 0; i < ALL_PLAYERS.length; i++) {
+      var name = ALL_PLAYERS[i];
+      html += '<tr><td>' + name + '</td>';
+      for (var rr = 0; rr < allRounds.length; rr++) {
+        var oi = getPlayerRoundOutIn(allRounds[rr], name);
+        html += '<td class="pts">' + (oi.out == null ? '\u2013' : oi.out) + '</td><td class="pts">' + (oi.inn == null ? '\u2013' : oi.inn) + '</td>';
+      }
+      html += '</tr>';
+    }
+
+    el.innerHTML = html;
+  }
+
+  function renderLeaderboards() {
+    var combined = computeCombinedTotals();
+    var totals = combined.totals;
+    var roundsPlayed = combined.roundsPlayed;
+
+    var names = ALL_PLAYERS.slice();
+    names.sort(function (a, b) { return totals[b] - totals[a]; });
+
+    var html = '<tr><th>Player</th><th style="text-align:right;">Points</th><th></th></tr>';
+    for (var i = 0; i < names.length; i++) {
+      var n = names[i];
+      var v = totals[n];
+      var display = (v % 1 === 0) ? v : v.toFixed(1);
+      var roundsLabel = roundsPlayed[n] === 1 ? '1 rd' : roundsPlayed[n] + ' rds';
+      html += '<tr><td>' + n + '</td><td class="pts">' + display + '</td><td class="rounds">' + roundsLabel + '</td></tr>';
+    }
+    document.getElementById('leaderCombined').innerHTML = html;
+
+    renderNineHoleLeaderboard();
+  }
+
+  // ---- init ----
+  function initFromSupabase() {
+    if (!supabaseClient) {
+      setSyncStatus('Offline \u2014 Supabase not loaded', true);
+      renderSetup();
+      return;
+    }
+
+    setSyncStatus('Loading\u2026');
+
+    supabaseClient
+      .from(TABLE_NAME)
+      .select('*')
+      .order('round_number', { ascending: true })
+      .then(function (res) {
+        if (res.error) {
+          setSyncStatus('Could not load saved rounds \u2014 starting fresh', true);
+          renderSetup();
+          subscribeRealtime();
+          return;
+        }
+
+        var rows = res.data || [];
+        var inProgressRow = null;
+
+        for (var i = 0; i < rows.length; i++) {
+          var row = rows[i];
+          var roundObj = { roundNum: row.round_number, A: row.foursome_a, B: row.foursome_b };
+          if (row.finished) {
+            archivedRounds.push(roundObj);
+          } else {
+            inProgressRow = roundObj;
+          }
+        }
+
+        if (inProgressRow) {
+          round = inProgressRow;
+          roundNumber = inProgressRow.roundNum;
+          activeFoursome = 'A';
+          showScreen('scoring');
+          setScoringView('entry');
+          renderScoring();
+        } else {
+          roundNumber = archivedRounds.length ? (archivedRounds[archivedRounds.length - 1].roundNum + 1) : 1;
+          renderSetup();
+        }
+
+        setSyncStatus('Live');
+        subscribeRealtime();
+      });
+  }
+
+  initFromSupabase();
+
+})();
+</script>
+
+</body>
+</html>
